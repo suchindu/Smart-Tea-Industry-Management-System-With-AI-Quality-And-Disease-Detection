@@ -1,5 +1,8 @@
 const DiseaseDetection = require('../models/DiseaseDetection');
 const mongoose = require('mongoose');
+const { spawn } = require('child_process');
+const path = require('path');
+const fs = require('fs');
 
 // Disease information database
 const diseaseDatabase = {
@@ -603,6 +606,147 @@ exports.getRecentDetections = async (req, res) => {
             success: false,
             message: 'Server error fetching recent detections',
             error: error.message
+        });
+    }
+};
+
+// @desc    Analyze image using AI model (Python subprocess)
+// @route   POST /api/disease-detections/analyze
+// @access  Private
+exports.analyzeImage = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'No image file uploaded'
+            });
+        }
+
+        const startTime = Date.now();
+
+        // Paths to predict script and model
+        const predictScript = path.join(__dirname, '..', 'ml-model', 'predict_service.py');
+        const modelPath = path.join(__dirname, '..', 'ml-model', 'best_model.pth');
+        const imagePath = req.file.path;
+
+        console.log('🔬 Running AI analysis...');
+        console.log('   Script:', predictScript);
+        console.log('   Model:', modelPath);
+        console.log('   Image:', imagePath);
+
+        // Check if model file exists
+        if (!fs.existsSync(modelPath)) {
+            // Clean up uploaded file
+            fs.unlinkSync(imagePath);
+            return res.status(500).json({
+                success: false,
+                message: `Model file not found at: ${modelPath}. Please ensure best_model.pth is in the models directory.`
+            });
+        }
+
+        // Determine Python executable path dynamically
+        let pythonExecutable = process.env.PYTHON_PATH || 'python';
+        
+        // Try to automatically find the local virtual environment if no custom path is set
+        if (!process.env.PYTHON_PATH) {
+            // Check Windows path
+            const venvWinPath = path.resolve(__dirname, '..', '..', '..', '.venv', 'Scripts', 'python.exe');
+            // Check Linux/Mac path
+            const venvUnixPath = path.resolve(__dirname, '..', '..', '..', '.venv', 'bin', 'python');
+            
+            if (fs.existsSync(venvWinPath)) {
+                pythonExecutable = venvWinPath;
+            } else if (fs.existsSync(venvUnixPath)) {
+                pythonExecutable = venvUnixPath;
+            }
+        }
+        
+        console.log('   Python:', pythonExecutable);
+
+        const result = await new Promise((resolve, reject) => {
+            const python = spawn(pythonExecutable, [
+                predictScript,
+                '--image', imagePath,
+                '--model', modelPath
+            ]);
+
+            let stdout = '';
+            let stderr = '';
+
+            python.stdout.on('data', (data) => {
+                stdout += data.toString();
+            });
+
+            python.stderr.on('data', (data) => {
+                stderr += data.toString();
+            });
+
+            python.on('close', (code) => {
+                // Clean up uploaded temp file
+                try {
+                    if (fs.existsSync(imagePath)) {
+                        fs.unlinkSync(imagePath);
+                    }
+                } catch (e) {
+                    console.warn('Could not clean up temp file:', e.message);
+                }
+
+                if (code !== 0) {
+                    reject(new Error(`Python process exited with code ${code}. Stderr: ${stderr}`));
+                    return;
+                }
+
+                try {
+                    // Parse the last line of stdout as JSON (ignore any other output)
+                    const lines = stdout.trim().split('\n');
+                    const jsonLine = lines[lines.length - 1];
+                    const parsed = JSON.parse(jsonLine);
+                    resolve(parsed);
+                } catch (e) {
+                    reject(new Error(`Failed to parse model output: ${stdout}. Error: ${e.message}`));
+                }
+            });
+
+            python.on('error', (err) => {
+                // Clean up uploaded temp file
+                try {
+                    if (fs.existsSync(imagePath)) {
+                        fs.unlinkSync(imagePath);
+                    }
+                } catch (e) {
+                    console.warn('Could not clean up temp file:', e.message);
+                }
+                reject(new Error(`Failed to start Python process: ${err.message}. Make sure Python is installed and accessible.`));
+            });
+        });
+
+        const processingTime = Date.now() - startTime;
+
+        if (!result.success) {
+            return res.status(500).json({
+                success: false,
+                message: `AI analysis failed: ${result.error}`
+            });
+        }
+
+        console.log(`✅ AI analysis complete in ${processingTime}ms: ${result.diseaseName} (${result.confidence}%)`);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                diseaseType: result.diseaseType,
+                diseaseName: result.diseaseName,
+                confidence: result.confidence,
+                probabilities: result.probabilities,
+                processingTime
+            }
+        });
+
+    } catch (error) {
+        console.error('AI analysis error:', error);
+        res.status(500).json({
+            success: false,
+            message: `AI analysis failed: ${error.message}`
         });
     }
 };
