@@ -1,6 +1,6 @@
-import axios from 'axios';
+import axios from './axios';
 
-const API_BASE_URL = '/api/tea-flavor-quality';
+const API_BASE_URL = '/tea-flavor-quality';
 
 // Create quality calculation
 export async function createCalculation(data) {
