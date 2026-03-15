@@ -649,16 +649,23 @@ exports.analyzeImage = async (req, res) => {
         
         // Try to automatically find the local virtual environment if no custom path is set
         if (!process.env.PYTHON_PATH) {
-            // Check Windows path
-            const venvWinPath = path.resolve(__dirname, '..', '..', '..', '.venv', 'Scripts', 'python.exe');
-            // Check Linux/Mac path
-            const venvUnixPath = path.resolve(__dirname, '..', '..', '..', '.venv', 'bin', 'python');
+            // Priority 1: Check venv inside ml-model directory (created by install_requirements.bat)
+            const mlModelVenvWin = path.join(__dirname, '..', 'ml-model', '.venv', 'Scripts', 'python.exe');
+            const mlModelVenvUnix = path.join(__dirname, '..', 'ml-model', '.venv', 'bin', 'python');
+            // Priority 2: Check venv in project root
+            const rootVenvWin = path.resolve(__dirname, '..', '..', '..', '.venv', 'Scripts', 'python.exe');
+            const rootVenvUnix = path.resolve(__dirname, '..', '..', '..', '.venv', 'bin', 'python');
             
-            if (fs.existsSync(venvWinPath)) {
-                pythonExecutable = venvWinPath;
-            } else if (fs.existsSync(venvUnixPath)) {
-                pythonExecutable = venvUnixPath;
+            if (fs.existsSync(mlModelVenvWin)) {
+                pythonExecutable = mlModelVenvWin;
+            } else if (fs.existsSync(mlModelVenvUnix)) {
+                pythonExecutable = mlModelVenvUnix;
+            } else if (fs.existsSync(rootVenvWin)) {
+                pythonExecutable = rootVenvWin;
+            } else if (fs.existsSync(rootVenvUnix)) {
+                pythonExecutable = rootVenvUnix;
             }
+            // Otherwise falls back to system 'python'
         }
         
         console.log('   Python:', pythonExecutable);

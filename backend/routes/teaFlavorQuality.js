@@ -9,6 +9,9 @@ router.get('/flavors/list', teaFlavorQualityController.getTeaFlavorsList);
 // Create quality calculation
 router.post('/', auth, teaFlavorQualityController.createCalculation);
 
+// ML-based quality prediction
+router.post('/predict', auth, teaFlavorQualityController.predictQuality);
+
 // Get all calculations for user
 router.get('/', auth, teaFlavorQualityController.getAllCalculations);
 

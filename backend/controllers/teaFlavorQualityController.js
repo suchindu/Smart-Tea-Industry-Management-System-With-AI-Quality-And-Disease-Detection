@@ -1,5 +1,8 @@
 const TeaFlavorQualityCalculation = require('../models/TeaFlavorQualityCalculation');
 const mongoose = require('mongoose');
+const { spawn } = require('child_process');
+const path = require('path');
+const fs = require('fs');
 
 // Tea flavor standards and configurations
 const TEA_FLAVORS = [
@@ -552,6 +555,159 @@ exports.getTeaFlavorsList = async (req, res) => {
       success: false,
       message: 'Error fetching tea flavors',
       error: error.message
+    });
+  }
+};
+
+// ML-based quality prediction using XGBoost models
+// @desc    Predict tea leaf quality using AI model (Python subprocess)
+// @route   POST /api/tea-flavor-quality/predict
+// @access  Private
+exports.predictQuality = async (req, res) => {
+  try {
+    const {
+      teaFlavor,
+      basePrice,
+      moisture,
+      qualityScore,
+      caffeine,
+      fineness,
+      batchWeight
+    } = req.body;
+
+    // Validate required fields
+    if (!teaFlavor || basePrice === undefined || moisture === undefined ||
+        qualityScore === undefined || caffeine === undefined ||
+        fineness === undefined || batchWeight === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required: teaFlavor, basePrice, moisture, qualityScore, caffeine, fineness, batchWeight'
+      });
+    }
+
+    const startTime = Date.now();
+
+    // Paths to predict script and model directory
+    const predictScript = path.join(__dirname, '..', 'ml-model', 'quality_predict_service.py');
+    const modelDir = path.join(__dirname, '..', 'ml-model', 'quality_models');
+
+    console.log('🍃 Running Tea Quality AI prediction...');
+    console.log('   Script:', predictScript);
+    console.log('   Models:', modelDir);
+
+    // Check if model files exist
+    if (!fs.existsSync(path.join(modelDir, 'quality_classifier.json'))) {
+      return res.status(500).json({
+        success: false,
+        message: 'Quality ML model not found. Please run train_quality_model.py first.'
+      });
+    }
+
+    // Determine Python executable path dynamically
+    let pythonExecutable = process.env.PYTHON_PATH || 'python';
+
+    // Try to automatically find the local virtual environment
+    if (!process.env.PYTHON_PATH) {
+      const mlModelVenvWin = path.join(__dirname, '..', 'ml-model', '.venv', 'Scripts', 'python.exe');
+      const mlModelVenvUnix = path.join(__dirname, '..', 'ml-model', '.venv', 'bin', 'python');
+      const rootVenvWin = path.resolve(__dirname, '..', '..', '..', '.venv', 'Scripts', 'python.exe');
+      const rootVenvUnix = path.resolve(__dirname, '..', '..', '..', '.venv', 'bin', 'python');
+
+      if (fs.existsSync(mlModelVenvWin)) {
+        pythonExecutable = mlModelVenvWin;
+      } else if (fs.existsSync(mlModelVenvUnix)) {
+        pythonExecutable = mlModelVenvUnix;
+      } else if (fs.existsSync(rootVenvWin)) {
+        pythonExecutable = rootVenvWin;
+      } else if (fs.existsSync(rootVenvUnix)) {
+        pythonExecutable = rootVenvUnix;
+      }
+    }
+
+    console.log('   Python:', pythonExecutable);
+
+    // Map tea flavor value to label name
+    const flavorMap = {
+      'black_tea': 'Black Tea Powder',
+      'green_tea': 'Green Tea Powder',
+      'oolong_tea': 'Oolong Tea Powder',
+      'white_tea': 'White Tea Powder',
+      'matcha': 'Matcha Powder',
+      'chai_spice': 'Chai Spice Tea Powder',
+      'earl_grey': 'Earl Grey Tea Powder'
+    };
+    const teaFlavorLabel = flavorMap[teaFlavor] || teaFlavor;
+
+    const result = await new Promise((resolve, reject) => {
+      const python = spawn(pythonExecutable, [
+        predictScript,
+        '--tea_flavor', teaFlavorLabel,
+        '--base_price', String(basePrice),
+        '--moisture', String(moisture),
+        '--quality_score', String(qualityScore),
+        '--caffeine', String(caffeine),
+        '--fineness', String(fineness),
+        '--batch_weight', String(batchWeight)
+      ]);
+
+      let stdout = '';
+      let stderr = '';
+
+      python.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      python.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      python.on('close', (code) => {
+        if (code !== 0) {
+          reject(new Error(`Python process exited with code ${code}. Stderr: ${stderr}`));
+          return;
+        }
+
+        try {
+          const lines = stdout.trim().split('\n');
+          const jsonLine = lines[lines.length - 1];
+          const parsed = JSON.parse(jsonLine);
+          resolve(parsed);
+        } catch (e) {
+          reject(new Error(`Failed to parse model output: ${stdout}. Error: ${e.message}`));
+        }
+      });
+
+      python.on('error', (err) => {
+        reject(new Error(`Failed to start Python process: ${err.message}. Make sure Python is installed.`));
+      });
+    });
+
+    const processingTime = Date.now() - startTime;
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        message: `AI prediction failed: ${result.error}`
+      });
+    }
+
+    console.log(`✅ Quality prediction complete in ${processingTime}ms: ${result.quality} (${result.percentage}%)`);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        quality: result.quality,
+        percentage: result.percentage,
+        qualityProbabilities: result.quality_probabilities,
+        processingTime
+      }
+    });
+
+  } catch (error) {
+    console.error('Quality prediction error:', error);
+    res.status(500).json({
+      success: false,
+      message: `Quality prediction failed: ${error.message}`
     });
   }
 };

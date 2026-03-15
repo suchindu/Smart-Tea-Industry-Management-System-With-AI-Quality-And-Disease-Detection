@@ -1,0 +1,11 @@
+torch>=2.0.0
+torchvision>=0.15.0
+Pillow>=10.0.0
+
+# Tea Quality Prediction Model Requirements
+xgboost>=1.7.0
+scikit-learn>=1.2.0
+pandas>=2.0.0
+openpyxl>=3.1.0
+jupyter>=1.0.0
+ipykernel>=6.0.0

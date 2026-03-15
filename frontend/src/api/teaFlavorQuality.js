@@ -1,6 +1,6 @@
-import axios from 'axios';
+import axios from './axios';
 
-const API_BASE_URL = '/api/tea-flavor-quality';
+const API_BASE_URL = '/tea-flavor-quality';
 
 // Create quality calculation
 export async function createCalculation(data) {
@@ -76,6 +76,16 @@ export async function getRecentCalculations(limit = 5) {
   }
 }
 
+// ML-based quality prediction
+export async function predictTeaQuality(data) {
+  try {
+    const response = await axios.post(`${API_BASE_URL}/predict`, data);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+
 // Get tea flavors list
 export async function getTeaFlavorsList() {
   try {
@@ -94,5 +104,6 @@ export default {
   deleteCalculation,
   getStatistics,
   getRecentCalculations,
-  getTeaFlavorsList
+  getTeaFlavorsList,
+  predictTeaQuality
 };
