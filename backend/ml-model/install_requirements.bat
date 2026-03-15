@@ -1,7 +1,7 @@
 @echo off
-echo ===================================================
-echo  Tea Disease AI Model - Python Environment Setup
-echo ===================================================
+echo ========================================================
+echo  Tea Quality & Disease AI Models - Environment Setup
+echo ========================================================
 echo.
 
 :: Get the directory where this script lives

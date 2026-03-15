@@ -1,0 +1,30 @@
+{
+  "feature_columns": [
+    "Tea Flavor",
+    "Base Price (Rs)",
+    "Moisture (%)",
+    "Quality Score",
+    "Caffeine (%)",
+    "Fineness (%)",
+    "Batch Weight (kg)"
+  ],
+  "tea_flavors": [
+    "Black Tea Powder",
+    "Chai Spice Tea Powder",
+    "Earl Grey Tea Powder",
+    "Green Tea Powder",
+    "Matcha Powder",
+    "Oolong Tea Powder",
+    "White Tea Powder"
+  ],
+  "quality_classes": [
+    "High",
+    "poor",
+    "premium"
+  ],
+  "classification_accuracy": 1.0,
+  "regression_mae": 0.08698780089616776,
+  "regression_r2": 0.9988946914672852,
+  "training_samples": 1600,
+  "test_samples": 400
+}

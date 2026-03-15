@@ -1,16 +1,21 @@
-# 🍃 Tea Disease AI Model - Setup Guide
+# 🍃 Tea Quality & Disease AI Models - Setup Guide
 
-This folder contains the AI model for **Tea Leaf Disease Classification** using a trained EfficientNet-B0 PyTorch model.
+This folder contains multiple AI models used by the system:
+1. **Tea Leaf Disease Classification**: A trained EfficientNet-B0 PyTorch model (`best_model.pth`).
+2. **Tea Leaf Quality Prediction**: Trained XGBoost models for quality grade and percentage (`quality_models/`).
 
 ## 📁 Folder Structure
 
 ```
 ml-model/
-├── best_model.pth           # Trained PyTorch model (EfficientNet-B0, ~95% accuracy)
-├── predict_service.py        # Python inference script (called by Node.js backend)
-├── requirements.txt          # Python dependencies
-├── install_requirements.bat  # One-click setup script (Windows)
-└── README.md                 # This file
+├── best_model.pth             # Trained PyTorch model (Disease Detection)
+├── predict_service.py         # Inference script for Disease Detection
+├── quality_models/            # Trained XGBoost models and encoders (Quality Prediction)
+├── quality_predict_service.py # Inference script for Quality Prediction
+├── train_quality_model.ipynb  # Jupyter notebook for training the quality model
+├── requirements.txt           # Python dependencies (for both models)
+├── install_requirements.bat   # One-click setup script (Windows)
+└── README.md                  # This file
 ```
 
 ## 🚀 First-Time Setup
@@ -32,10 +37,10 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-This creates a virtual environment inside `ml-model/.venv/` and installs:
-- `torch` — PyTorch deep learning framework
-- `torchvision` — Image processing and pre-trained models
-- `Pillow` — Image loading library
+This creates a virtual environment inside `ml-model/.venv/` and installs dependencies for both models:
+- `torch`, `torchvision`, `Pillow` — For Tea Disease classification
+- `xgboost`, `scikit-learn`, `pandas` — For Tea Quality prediction
+- `jupyter` — For running the training notebooks
 
 ### Step 2: Install Node.js Dependencies
 
@@ -58,12 +63,19 @@ cd frontend
 npm run dev
 ```
 
-### Step 5: Use the Disease Detection
+### Step 5: Use the AI Features
 
+**Disease Detection:**
 1. Open `http://localhost:5173` in your browser
 2. Log in and navigate to **Tea Disease Detection** (`/owner/tea-disease`)
 3. Upload a tea leaf image and click **Analyze**
 4. The AI model will classify the leaf and show results
+
+**Quality Check:**
+1. Navigate to **Tea Quality** (`/owner/tea-quality`)
+2. Open the **AI Tea Leaf Quality Check** tab
+3. Enter parameters and click **Predict Quality**
+4. The XGBoost model will predict the quality grade classification and percentage
 
 ## 🔬 Detected Diseases
 
@@ -92,6 +104,6 @@ The backend auto-detects Python in this order:
 | Problem | Solution |
 |---------|----------|
 | `ModuleNotFoundError: No module named 'torch'` | Run `install_requirements.bat` or install packages manually |
-| `Model file not found` | Ensure `best_model.pth` is in this folder |
+| `Model file not found` | Ensure `best_model.pth` and `quality_models/` exist in this folder |
 | `Python is not installed` | Install Python 3.8+ from [python.org](https://www.python.org/downloads/) |
-| Analysis takes too long | First run loads the model (~10-15s). Subsequent runs are faster |
+| Analysis takes too long | First run loads the models (~10-15s). Subsequent runs are faster |
