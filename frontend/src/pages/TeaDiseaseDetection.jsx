@@ -224,19 +224,25 @@ const TeaDiseaseDetection = () => {
     const startTime = Date.now();
 
     try {
-      // Simulate AI analysis (in production, call ML service)
-      const aiResult = await diseaseAPI.simulateAIAnalysis(selectedImage);
+      // Call real AI model via backend
+      const response = await diseaseAPI.analyzeImage(selectedImage);
       const processingTime = Date.now() - startTime;
 
-      setAnalysisResult({
-        ...aiResult,
-        disease: aiResult.diseaseType, // Add disease field for compatibility
-        timestamp: new Date().toISOString(),
-        processingTime
-      });
+      if (response.success && response.data) {
+        const aiResult = response.data;
+        setAnalysisResult({
+          ...aiResult,
+          disease: aiResult.diseaseType, // Add disease field for compatibility
+          timestamp: new Date().toISOString(),
+          processingTime: aiResult.processingTime || processingTime
+        });
+      } else {
+        throw new Error(response.message || 'Analysis failed');
+      }
     } catch (error) {
       console.error('Analysis error:', error);
-      alert('Error analyzing image. Please try again.');
+      const errorMsg = error.response?.data?.message || error.message || 'Error analyzing image. Please try again.';
+      alert(errorMsg);
     } finally {
       setIsAnalyzing(false);
     }

@@ -177,25 +177,27 @@ export const getDailyStatistics = async () => {
 };
 
 /**
- * Simulate AI analysis (client-side mock for demo)
- * In production, this would call a separate ML service
+ * Analyze image using AI model via backend
+ * Sends image to Python PyTorch model for real disease classification
  * @param {File} imageFile - Image file to analyze
  */
-export const simulateAIAnalysis = async (imageFile) => {
-    return new Promise((resolve) => {
-        // Simulate processing time
-        setTimeout(() => {
-            const diseases = ['BB', 'RR', 'RSM', 'GL'];
-            const randomDisease = diseases[Math.floor(Math.random() * diseases.length)];
-            const confidence = 85 + Math.random() * 13;
-            
-            resolve({
-                diseaseType: randomDisease,
-                confidence: parseFloat(confidence.toFixed(1)),
-                processingTime: 2500 + Math.random() * 1000 // 2.5-3.5 seconds
-            });
-        }, 3000);
-    });
+export const analyzeImage = async (imageFile) => {
+    try {
+        const formData = new FormData();
+        formData.append('image', imageFile);
+
+        const response = await api.post('/disease-detections/analyze', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+            timeout: 60000, // 60 second timeout for model inference
+        });
+
+        return response.data;
+    } catch (error) {
+        console.error('AI analysis error:', error);
+        throw error;
+    }
 };
 
 export default {
@@ -209,5 +211,5 @@ export default {
     createTreatmentPlan,
     getRecentDetections,
     getDailyStatistics,
-    simulateAIAnalysis
+    analyzeImage
 };

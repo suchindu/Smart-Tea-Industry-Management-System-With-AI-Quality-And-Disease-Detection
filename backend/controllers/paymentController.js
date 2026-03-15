@@ -962,3 +962,43 @@ exports.getPaymentSummary = async (req, res) => {
     }
 };
 
+// @desc    Get payment overview for owner
+// @route   GET /api/payments/owner-overview
+// @access  Private (Owner)
+exports.getOwnerPaymentOverview = async (req, res) => {
+    try {
+        // Placeholder implementation
+        res.status(200).json({
+            success: true,
+            message: 'Owner payment overview - Feature coming soon',
+            data: {}
+        });
+    } catch (error) {
+        console.error('Error in getOwnerPaymentOverview:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching owner payment overview'
+        });
+    }
+};
+
+// @desc    Get route-wise payment summary for owner
+// @route   GET /api/payments/owner-route-summary
+// @access  Private (Owner)
+exports.getOwnerRoutePaymentSummary = async (req, res) => {
+    try {
+        // Placeholder implementation
+        res.status(200).json({
+            success: true,
+            message: 'Owner route payment summary - Feature coming soon',
+            data: []
+        });
+    } catch (error) {
+        console.error('Error in getOwnerRoutePaymentSummary:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching owner route payment summary'
+        });
+    }
+};
+

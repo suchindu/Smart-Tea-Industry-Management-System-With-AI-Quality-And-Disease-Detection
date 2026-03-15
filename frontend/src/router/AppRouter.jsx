@@ -8,6 +8,7 @@ import TransportManagerRoutes from "./TransportManagerRoutes";
 import FactoryManagerRoutes from "./FactoryManagerRoutes";
 import OwnerRoutes from "./OwnerRoutes";
 import PaymentManagerRoutes from "./PaymentManagerRoutes";
+import supplierRoutes from "./SupplierRoutes";
 
 import Auth from "../components/Auth";
 import DevLogin from "../pages/auth/login";
@@ -29,6 +30,7 @@ export default function AppRouter() {
         {FactoryManagerRoutes}
         {TransportManagerRoutes}
         {PaymentManagerRoutes}
+        {supplierRoutes}
 
         <Route path="/login" element={<Auth />} />
         {/* Development-only simple login (bypasses backend) */}

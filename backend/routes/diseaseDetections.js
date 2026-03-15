@@ -1,5 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const {
     createDetection,
     getAllDetections,
@@ -9,12 +12,35 @@ const {
     getStatistics,
     markAsTreated,
     createTreatmentPlan,
-    getRecentDetections
+    getRecentDetections,
+    analyzeImage
 } = require('../controllers/diseaseDetectionController');
 const { auth } = require('../middleware/auth');
 
+// Configure multer for temporary image uploads
+const uploadDir = path.join(__dirname, '..', 'temp-uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const upload = multer({
+    dest: uploadDir,
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only JPEG, PNG, and WebP are allowed.'));
+        }
+    }
+});
+
 // All routes are protected (require authentication)
 router.use(auth);
+
+// POST /api/disease-detections/analyze - Analyze image using AI model
+router.post('/analyze', upload.single('image'), analyzeImage);
 
 // GET /api/disease-detections/statistics/summary - Get statistics
 router.get('/statistics/summary', getStatistics);
