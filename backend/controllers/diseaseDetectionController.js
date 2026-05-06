@@ -736,7 +736,20 @@ exports.analyzeImage = async (req, res) => {
             });
         }
 
-        console.log(`✅ AI analysis complete in ${processingTime}ms: ${result.diseaseName} (${result.confidence}%)`);
+        // ── Stage 1 gate rejected the image ──────────────────────────────────
+        // The pretrained ImageNet filter determined this is not a tea leaf.
+        if (result.isTeaLeaf === false) {
+            console.log(`🚫 Gate rejected image in ${processingTime}ms — not a tea leaf (signals: ${result.gateInfo?.signals_passed}/3)`);
+            return res.status(422).json({
+                success: false,
+                isTeaLeaf: false,
+                message: result.message || 'This image does not appear to be a tea leaf. Please upload a clear, close-up photo of a tea leaf.',
+                gateInfo: result.gateInfo,
+                processingTime
+            });
+        }
+
+        console.log(`✅ AI analysis complete in ${processingTime}ms: ${result.diseaseName} (${result.confidence}%) [${result.confidenceLabel}]`);
 
         res.status(200).json({
             success: true,
@@ -744,6 +757,7 @@ exports.analyzeImage = async (req, res) => {
                 diseaseType: result.diseaseType,
                 diseaseName: result.diseaseName,
                 confidence: result.confidence,
+                confidenceLabel: result.confidenceLabel,   // 'high' | 'moderate' | 'low'
                 probabilities: result.probabilities,
                 processingTime
             }

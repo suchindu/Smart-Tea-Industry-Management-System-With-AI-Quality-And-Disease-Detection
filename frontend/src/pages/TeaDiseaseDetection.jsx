@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Camera, X, AlertCircle, CheckCircle, Clock, ChevronDown, ArrowLeft, Download, Filter, Search, Calendar, Eye, FileText, Trash } from 'lucide-react';
+import { Upload, Camera, X, AlertCircle, CheckCircle, Clock, ChevronDown, ArrowLeft, Download, Filter, Search, Calendar, Eye, FileText, Trash, Settings, Sliders } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { useAuth } from '../contexts/AuthContext';
 import * as diseaseAPI from '../api/diseaseDetection';
@@ -16,6 +16,14 @@ const TeaDiseaseDetection = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [uploadMethod, setUploadMethod] = useState('upload');
   const [isSaving, setIsSaving] = useState(false);
+
+  // Confidence threshold settings — persisted in localStorage
+  const [confidenceThreshold, setConfidenceThreshold] = useState(() => {
+    const saved = localStorage.getItem('diseaseDetection_confidenceThreshold');
+    return saved ? parseInt(saved, 10) : 60;
+  });
+  const [showSettings, setShowSettings] = useState(false);
+  const [bypassThreshold, setBypassThreshold] = useState(false);
 
   // Backend data
   const [allDetections, setAllDetections] = useState([]);
@@ -221,20 +229,33 @@ const TeaDiseaseDetection = () => {
     if (!selectedImage) return;
 
     setIsAnalyzing(true);
+    setAnalysisResult(null);
     const startTime = Date.now();
 
     try {
-      // Call real AI model via backend
+      // Call real AI model via backend (Stage 1 gate + Stage 2 disease classifier)
       const response = await diseaseAPI.analyzeImage(selectedImage);
       const processingTime = Date.now() - startTime;
+
+      // Stage 1 gate rejected — not a tea leaf
+      if (response.isTeaLeaf === false) {
+        setAnalysisResult({
+          isTeaLeaf: false,
+          message: response.message,
+          processingTime,
+        });
+        return;
+      }
 
       if (response.success && response.data) {
         const aiResult = response.data;
         setAnalysisResult({
           ...aiResult,
-          disease: aiResult.diseaseType, // Add disease field for compatibility
+          isTeaLeaf: true,
+          disease: aiResult.diseaseType,
           timestamp: new Date().toISOString(),
-          processingTime: aiResult.processingTime || processingTime
+          processingTime: aiResult.processingTime || processingTime,
+          confidenceLabel: aiResult.confidenceLabel || 'moderate',
         });
       } else {
         throw new Error(response.message || 'Analysis failed');
@@ -247,6 +268,7 @@ const TeaDiseaseDetection = () => {
       setIsAnalyzing(false);
     }
   };
+
 
   const saveDetectionToBackend = async () => {
     if (!analysisResult) return;
@@ -311,8 +333,15 @@ const TeaDiseaseDetection = () => {
     setSelectedImage(null);
     setImagePreview(null);
     setAnalysisResult(null);
+    setBypassThreshold(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (cameraInputRef.current) cameraInputRef.current.value = '';
+  };
+
+  const updateThreshold = (value) => {
+    const v = parseInt(value, 10);
+    setConfidenceThreshold(v);
+    localStorage.setItem('diseaseDetection_confidenceThreshold', v.toString());
   };
 
   const viewReportDetail = (detection) => {
@@ -1506,7 +1535,73 @@ const TeaDiseaseDetection = () => {
               />
             </div>
 
-            {analysisResult && currentDisease && (
+            {/* ── Stage 1 Gate Rejection Banner ───────────────────────── */}
+            {analysisResult && analysisResult.isTeaLeaf === false && (
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="flex items-start gap-4 p-5 bg-orange-50 border-2 border-orange-300 rounded-xl">
+                  <div className="flex-shrink-0 w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                    <AlertCircle className="w-7 h-7 text-orange-500" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-orange-800 mb-1">Not a Tea Leaf Image</h3>
+                    <p className="text-orange-700 text-sm leading-relaxed">{analysisResult.message}</p>
+                    <ul className="mt-3 space-y-1 text-sm text-orange-600">
+                      <li>• Upload a close-up photo of a tea leaf</li>
+                      <li>• Ensure good lighting and focus</li>
+                      <li>• Avoid photos of people, animals, or unrelated objects</li>
+                    </ul>
+                    <button
+                      onClick={clearImage}
+                      className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors"
+                    >
+                      Try Another Image
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Low Confidence Warning Banner ─────────────────────── */}
+            {analysisResult && analysisResult.isTeaLeaf === true && analysisResult.confidence < confidenceThreshold && !bypassThreshold && (
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="flex items-start gap-4 p-5 bg-amber-50 border-2 border-amber-300 rounded-xl">
+                  <div className="flex-shrink-0 w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
+                    <AlertCircle className="w-7 h-7 text-amber-500" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-amber-800 mb-1">Low Confidence Result</h3>
+                    <p className="text-amber-700 text-sm leading-relaxed">
+                      The AI model returned <span className="font-bold">{analysisResult.confidence?.toFixed(1)}%</span> confidence,
+                      which is below your threshold of <span className="font-bold">{confidenceThreshold}%</span>.
+                    </p>
+                    <p className="text-amber-600 text-sm mt-2 leading-relaxed">
+                      This result may be unreliable. The uploaded image may not be a clear tea leaf photo.
+                    </p>
+                    <ul className="mt-3 space-y-1 text-sm text-amber-600">
+                      <li>• Try uploading a clearer, close-up leaf image</li>
+                      <li>• Ensure good lighting and focus</li>
+                      <li>• Adjust threshold in Detection Settings if needed</li>
+                    </ul>
+                    <div className="flex gap-3 mt-4">
+                      <button
+                        onClick={() => setBypassThreshold(true)}
+                        className="px-4 py-2 bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-sm font-semibold hover:bg-amber-200 transition-colors"
+                      >
+                        View Result Anyway
+                      </button>
+                      <button
+                        onClick={clearImage}
+                        className="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 transition-colors"
+                      >
+                        Try Another Image
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {analysisResult && currentDisease && (analysisResult.confidence >= confidenceThreshold || bypassThreshold) && (
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">Analysis Results</h2>
 
@@ -1519,6 +1614,14 @@ const TeaDiseaseDetection = () => {
                     <div className="text-right">
                       <div className="text-3xl font-bold text-gray-900">{analysisResult.confidence}%</div>
                       <p className="text-sm text-gray-600">Confidence</p>
+                      <span className={`mt-1 inline-block px-2 py-0.5 rounded-full text-xs font-bold ${
+                        analysisResult.confidenceLabel === 'high' ? 'bg-green-100 text-green-700' :
+                        analysisResult.confidenceLabel === 'moderate' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {analysisResult.confidenceLabel === 'high' ? '✓ High' :
+                         analysisResult.confidenceLabel === 'moderate' ? '⚠ Moderate' : '⚠ Low'}
+                      </span>
                     </div>
                   </div>
 
@@ -1573,20 +1676,35 @@ const TeaDiseaseDetection = () => {
                   </div>
                 </div>
 
+                {/* Bypass warning badge */}
+                {bypassThreshold && analysisResult.confidence < confidenceThreshold && (
+                  <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mt-2 mb-4">
+                    <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                    <p className="text-xs text-amber-700">
+                      This result is below your confidence threshold ({confidenceThreshold}%). Saving is disabled.
+                    </p>
+                  </div>
+                )}
+
                 <div className="flex gap-4 mt-6">
-                  <button
-                    onClick={saveDetectionToBackend}
-                    disabled={isSaving}
-                    className="flex-1 py-3 bg-[#165E52] text-white rounded-lg hover:bg-[#0f4d42] disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md"
-                  >
-                    {isSaving ? 'Saving...' : 'Save Detection'}
-                  </button>
-                  <button
-                    onClick={() => downloadReport({ ...analysisResult, id: 'new', analyzedBy: user?.name || 'Current User', date: new Date().toLocaleDateString(), time: new Date().toLocaleTimeString(), status: 'pending' })}
-                    className="flex-1 py-3 bg-[#01251F] text-white rounded-lg hover:bg-[#014c3b] transition-colors font-semibold shadow-md"
-                  >
-                    Download Report
-                  </button>
+                  {/* Only show Save/Download when confidence meets threshold */}
+                  {analysisResult.confidence >= confidenceThreshold && (
+                    <>
+                      <button
+                        onClick={saveDetectionToBackend}
+                        disabled={isSaving}
+                        className="flex-1 py-3 bg-[#165E52] text-white rounded-lg hover:bg-[#0f4d42] disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md"
+                      >
+                        {isSaving ? 'Saving...' : 'Save Detection'}
+                      </button>
+                      <button
+                        onClick={() => downloadReport({ ...analysisResult, id: 'new', analyzedBy: user?.name || 'Current User', date: new Date().toLocaleDateString(), time: new Date().toLocaleTimeString(), status: 'pending' })}
+                        className="flex-1 py-3 bg-[#01251F] text-white rounded-lg hover:bg-[#014c3b] transition-colors font-semibold shadow-md"
+                      >
+                        Download Report
+                      </button>
+                    </>
+                  )}
                   <button
                     onClick={clearImage}
                     className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold shadow-sm"
@@ -1599,6 +1717,76 @@ const TeaDiseaseDetection = () => {
           </div>
 
           <div className="space-y-6">
+            {/* ── Detection Settings Panel ────────────────────────── */}
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-gray-500" />
+                  <h3 className="font-semibold text-gray-900">Detection Settings</h3>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showSettings ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showSettings && (
+                <div className="px-4 pb-5 border-t border-gray-100 pt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sliders className="w-4 h-4 text-[#165E52]" />
+                    <label className="text-sm font-medium text-gray-700">Minimum Confidence Threshold</label>
+                  </div>
+
+                  <div className="relative mb-2">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={confidenceThreshold}
+                      onChange={(e) => updateThreshold(e.target.value)}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#165E52]"
+                    />
+                    <div className="flex justify-between text-xs text-gray-400 mt-1">
+                      <span>0%</span>
+                      <span>50%</span>
+                      <span>100%</span>
+                    </div>
+                  </div>
+
+                  <div className="text-center mb-4">
+                    <span className="inline-block px-3 py-1 bg-[#165E52] text-white rounded-full text-sm font-bold">
+                      {confidenceThreshold}%
+                    </span>
+                  </div>
+
+                  <div className="flex gap-2 mb-4">
+                    {[
+                      { label: 'Low', value: 40, desc: 'Accept most results' },
+                      { label: 'Medium', value: 60, desc: 'Balanced' },
+                      { label: 'High', value: 80, desc: 'Strict filtering' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.value}
+                        onClick={() => updateThreshold(preset.value)}
+                        className={`flex-1 py-2 px-2 rounded-lg text-xs font-semibold transition-colors border ${
+                          confidenceThreshold === preset.value
+                            ? 'bg-[#165E52] text-white border-[#165E52]'
+                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    Results below this threshold will be flagged as unreliable and blocked from saving.
+                    Lower values accept more results; higher values are stricter.
+                  </p>
+                </div>
+              )}
+            </div>
             <div className="bg-white rounded-lg shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-900">Detection Statistics</h3>

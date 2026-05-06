@@ -195,10 +195,22 @@ export const analyzeImage = async (imageFile) => {
 
         return response.data;
     } catch (error) {
+        // HTTP 422 = gate rejected — not a tea leaf image
+        // Return a structured object so the UI can show a friendly message
+        // instead of treating it as a generic network error.
+        if (error.response?.status === 422) {
+            return {
+                success: false,
+                isTeaLeaf: false,
+                message: error.response.data?.message ||
+                    'This image does not appear to be a tea leaf. Please upload a clear, close-up photo of a tea leaf.',
+            };
+        }
         console.error('AI analysis error:', error);
         throw error;
     }
 };
+
 
 export default {
     createDetection,
