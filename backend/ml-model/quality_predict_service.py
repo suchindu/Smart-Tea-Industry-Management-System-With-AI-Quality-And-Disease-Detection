@@ -1,8 +1,18 @@
 """
 Tea Leaf Quality Prediction - Prediction Service for Node.js Backend
-Called as subprocess from Node.js:
-  python quality_predict_service.py --tea_flavor "Black Tea Powder" --base_price 25500
-    --moisture 3.5 --quality_score 95 --caffeine 3.2 --fineness 95 --batch_weight 100
+=====================================================================
+Called as subprocess from Node.js with the 8 raw quality parameters:
+
+  python quality_predict_service.py
+    --tea_flavor "Black Tea Powder"
+    --particle_size 95
+    --moisture 3.5
+    --color_value 80
+    --aroma_power 8.5
+    --taste_strength 8.0
+    --solubility 97
+    --caffeine 3.2
+    --fineness 95
 
 Outputs JSON to stdout for Node.js to parse.
 """
@@ -41,7 +51,8 @@ def load_models():
     return clf, reg, tea_flavor_encoder, quality_encoder, scaler
 
 
-def predict(tea_flavor, base_price, moisture, quality_score, caffeine, fineness, batch_weight):
+def predict(tea_flavor, particle_size, moisture, color_value, aroma_power,
+            taste_strength, solubility, caffeine, fineness):
     """Run prediction and return result dict"""
     clf, reg, tea_flavor_encoder, quality_encoder, scaler = load_models()
 
@@ -57,8 +68,12 @@ def predict(tea_flavor, base_price, moisture, quality_score, caffeine, fineness,
     tea_flavor_encoded = tea_flavor_encoder.transform([tea_flavor])[0]
 
     # Create feature array in same order as training:
-    # ['Tea Flavor', 'Base Price (Rs)', 'Moisture (%)', 'Quality Score', 'Caffeine (%)', 'Fineness (%)', 'Batch Weight (kg)']
-    features = np.array([[tea_flavor_encoded, base_price, moisture, quality_score, caffeine, fineness, batch_weight]])
+    # ['Tea Flavor', 'Particle Size', 'Moisture (%)', 'Color Value',
+    #  'Aroma Power', 'Taste Strength', 'Solubility (%)', 'Caffeine (%)', 'Fineness (%)']
+    features = np.array([[
+        tea_flavor_encoded, particle_size, moisture, color_value,
+        aroma_power, taste_strength, solubility, caffeine, fineness
+    ]])
 
     # Scale features
     features_scaled = scaler.transform(features)
@@ -87,12 +102,14 @@ def predict(tea_flavor, base_price, moisture, quality_score, caffeine, fineness,
         'quality_probabilities': quality_probabilities,
         'input_summary': {
             'tea_flavor': tea_flavor,
-            'base_price': base_price,
+            'particle_size': particle_size,
             'moisture': moisture,
-            'quality_score': quality_score,
+            'color_value': color_value,
+            'aroma_power': aroma_power,
+            'taste_strength': taste_strength,
+            'solubility': solubility,
             'caffeine': caffeine,
-            'fineness': fineness,
-            'batch_weight': batch_weight
+            'fineness': fineness
         }
     }
 
@@ -102,23 +119,27 @@ def predict(tea_flavor, base_price, moisture, quality_score, caffeine, fineness,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Tea leaf quality prediction')
     parser.add_argument('--tea_flavor', type=str, required=True, help='Tea flavor name')
-    parser.add_argument('--base_price', type=float, required=True, help='Base price in Rs')
+    parser.add_argument('--particle_size', type=float, required=True, help='Particle size (mesh)')
     parser.add_argument('--moisture', type=float, required=True, help='Moisture percentage')
-    parser.add_argument('--quality_score', type=float, required=True, help='Quality score (88-100)')
+    parser.add_argument('--color_value', type=float, required=True, help='Color value (L*)')
+    parser.add_argument('--aroma_power', type=float, required=True, help='Aroma power (0-10)')
+    parser.add_argument('--taste_strength', type=float, required=True, help='Taste strength (0-10)')
+    parser.add_argument('--solubility', type=float, required=True, help='Solubility percentage')
     parser.add_argument('--caffeine', type=float, required=True, help='Caffeine percentage')
     parser.add_argument('--fineness', type=float, required=True, help='Fineness percentage')
-    parser.add_argument('--batch_weight', type=float, required=True, help='Batch weight in kg')
     args = parser.parse_args()
 
     try:
         result = predict(
             tea_flavor=args.tea_flavor,
-            base_price=args.base_price,
+            particle_size=args.particle_size,
             moisture=args.moisture,
-            quality_score=args.quality_score,
+            color_value=args.color_value,
+            aroma_power=args.aroma_power,
+            taste_strength=args.taste_strength,
+            solubility=args.solubility,
             caffeine=args.caffeine,
-            fineness=args.fineness,
-            batch_weight=args.batch_weight
+            fineness=args.fineness
         )
         # Output ONLY JSON to stdout (Node.js will parse this)
         print(json.dumps(result))

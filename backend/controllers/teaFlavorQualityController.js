@@ -559,6 +559,18 @@ exports.getTeaFlavorsList = async (req, res) => {
   }
 };
 
+// Grade label to price multiplier mapping
+const GRADE_MULTIPLIERS = {
+  'Premium': 1.35,
+  'Superior': 1.25,
+  'High': 1.15,
+  'Good': 1.05,
+  'Standard': 1.00,
+  'Commercial': 0.90,
+  'Low': 0.75,
+  'Reject': 0.50
+};
+
 // ML-based quality prediction using XGBoost models
 // @desc    Predict tea leaf quality using AI model (Python subprocess)
 // @route   POST /api/tea-flavor-quality/predict
@@ -568,20 +580,27 @@ exports.predictQuality = async (req, res) => {
     const {
       teaFlavor,
       basePrice,
-      moisture,
-      qualityScore,
-      caffeine,
-      fineness,
+      particleSize,
+      moistureContent,
+      colorValue,
+      aromaPower,
+      tasteStrength,
+      solubility,
+      caffeineContent,
+      powderFineness,
       batchWeight
     } = req.body;
 
     // Validate required fields
-    if (!teaFlavor || basePrice === undefined || moisture === undefined ||
-        qualityScore === undefined || caffeine === undefined ||
-        fineness === undefined || batchWeight === undefined) {
+    if (!teaFlavor || basePrice === undefined ||
+        particleSize === undefined || moistureContent === undefined ||
+        colorValue === undefined || aromaPower === undefined ||
+        tasteStrength === undefined || solubility === undefined ||
+        caffeineContent === undefined || powderFineness === undefined ||
+        batchWeight === undefined) {
       return res.status(400).json({
         success: false,
-        message: 'All fields are required: teaFlavor, basePrice, moisture, qualityScore, caffeine, fineness, batchWeight'
+        message: 'All fields are required: teaFlavor, basePrice, particleSize, moistureContent, colorValue, aromaPower, tasteStrength, solubility, caffeineContent, powderFineness, batchWeight'
       });
     }
 
@@ -591,7 +610,7 @@ exports.predictQuality = async (req, res) => {
     const predictScript = path.join(__dirname, '..', 'ml-model', 'quality_predict_service.py');
     const modelDir = path.join(__dirname, '..', 'ml-model', 'quality_models');
 
-    console.log('🍃 Running Tea Quality AI prediction...');
+    console.log('Running Tea Quality AI prediction...');
     console.log('   Script:', predictScript);
     console.log('   Models:', modelDir);
 
@@ -599,7 +618,7 @@ exports.predictQuality = async (req, res) => {
     if (!fs.existsSync(path.join(modelDir, 'quality_classifier.json'))) {
       return res.status(500).json({
         success: false,
-        message: 'Quality ML model not found. Please run train_quality_model.py first.'
+        message: 'Quality ML model not found. Please run train_updated_quality_model.ipynb first.'
       });
     }
 
@@ -642,12 +661,14 @@ exports.predictQuality = async (req, res) => {
       const python = spawn(pythonExecutable, [
         predictScript,
         '--tea_flavor', teaFlavorLabel,
-        '--base_price', String(basePrice),
-        '--moisture', String(moisture),
-        '--quality_score', String(qualityScore),
-        '--caffeine', String(caffeine),
-        '--fineness', String(fineness),
-        '--batch_weight', String(batchWeight)
+        '--particle_size', String(particleSize),
+        '--moisture', String(moistureContent),
+        '--color_value', String(colorValue),
+        '--aroma_power', String(aromaPower),
+        '--taste_strength', String(tasteStrength),
+        '--solubility', String(solubility),
+        '--caffeine', String(caffeineContent),
+        '--fineness', String(powderFineness)
       ]);
 
       let stdout = '';
@@ -691,7 +712,15 @@ exports.predictQuality = async (req, res) => {
       });
     }
 
-    console.log(`✅ Quality prediction complete in ${processingTime}ms: ${result.quality} (${result.percentage}%)`);
+    // Calculate pricing based on the AI-predicted grade label
+    const priceMultiplier = GRADE_MULTIPLIERS[result.quality] || 1.0;
+    const adjustedPricePerKg = parseFloat(basePrice) * priceMultiplier;
+    const batchWeightNum = parseFloat(batchWeight);
+    const totalBatchValue = adjustedPricePerKg * batchWeightNum;
+    const priceDifference = adjustedPricePerKg - parseFloat(basePrice);
+    const pricePercentDiff = ((priceDifference / parseFloat(basePrice)) * 100).toFixed(1);
+
+    console.log(`Quality prediction complete in ${processingTime}ms: ${result.quality} (${result.percentage}%)`);
 
     res.status(200).json({
       success: true,
@@ -699,6 +728,15 @@ exports.predictQuality = async (req, res) => {
         quality: result.quality,
         percentage: result.percentage,
         qualityProbabilities: result.quality_probabilities,
+        pricing: {
+          basePrice: parseFloat(basePrice),
+          priceMultiplier,
+          adjustedPricePerKg,
+          totalBatchValue,
+          batchWeight: batchWeightNum,
+          priceDifference,
+          pricePercentDiff
+        },
         processingTime
       }
     });
@@ -713,3 +751,4 @@ exports.predictQuality = async (req, res) => {
 };
 
 module.exports = exports;
+

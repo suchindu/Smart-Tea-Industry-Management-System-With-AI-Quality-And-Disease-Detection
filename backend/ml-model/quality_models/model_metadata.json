@@ -1,12 +1,14 @@
 {
   "feature_columns": [
     "Tea Flavor",
-    "Base Price (Rs)",
+    "Particle Size",
     "Moisture (%)",
-    "Quality Score",
+    "Color Value",
+    "Aroma Power",
+    "Taste Strength",
+    "Solubility (%)",
     "Caffeine (%)",
-    "Fineness (%)",
-    "Batch Weight (kg)"
+    "Fineness (%)"
   ],
   "tea_flavors": [
     "Black Tea Powder",
@@ -18,13 +20,28 @@
     "White Tea Powder"
   ],
   "quality_classes": [
+    "Commercial",
+    "Good",
     "High",
-    "poor",
-    "premium"
+    "Low",
+    "Premium",
+    "Reject",
+    "Standard",
+    "Superior"
   ],
-  "classification_accuracy": 1.0,
-  "regression_mae": 0.08698780089616776,
-  "regression_r2": 0.9988946914672852,
-  "training_samples": 1600,
-  "test_samples": 400
+  "classification_accuracy": 0.566,
+  "regression_mae": 2.6843181170654296,
+  "regression_r2": 0.9613435849378906,
+  "training_samples": 4000,
+  "test_samples": 1000,
+  "grade_multipliers": {
+    "Premium": 1.35,
+    "Superior": 1.25,
+    "High": 1.15,
+    "Good": 1.05,
+    "Standard": 1.0,
+    "Commercial": 0.9,
+    "Low": 0.75,
+    "Reject": 0.5
+  }
 }
